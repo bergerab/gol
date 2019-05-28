@@ -3,25 +3,44 @@
     <head>
         <meta charset="UTF-8">
         <title>Game of Life</title>
+        <script src="prefabs.js"></script>
     </head>
     <body>
-        <canvas id="screen" width="1800" height="1000"></canvas>
+        <canvas id="screen" width="800" height="600"></canvas>
         <div>
             <div>
-                <label>Fast</label><input type="range" min="10" max="2000" value="300" id="delay"><label>Slow</label>
+                <label>Fast</label><input type="range" min="3" max="2000" value="300" id="delay"><label>Slow</label>
             </div>
             <div>
-                <label>Small</label><input onchange="init()" type="range" min="5" max="100" value="20" id="size"><label>Big</label>
+                <label>Small</label><input onchange="changeSize()" type="range" min="10" max="100" value="15" id="size"><label>Big</label>
             </div>
             <div>
                 <button onclick="toggleLoop()" id="loopStarter">Start Loop</button>
                 <button onclick="runGeneration()">Next Generation</button>
+            </div>
+            <div>
+                <button onclick="clearCells()">Clear</button>
+                <button onclick="save()">Save</button>
+                <button onclick="load()">Load</button>
+            </div>
+
+            <div>
+                <select id="prefabSelector">
+                    <option value="glider">Glider</option>
+                    <option value="bomb">Bomb</option>
+                    <option value="frag">Frag</option>
+                    <option value="gosperGliderGun">Gosper Glider Gun</option>
+                    <option value="theFinalBoss">The Final Boss</option>
+                </select>
+                <button onclick="loadPrefab()">Load Prefab</button>
+            </div>
+
+            <div>
                 <label>Generation #</label><label id="generationCounter">0</label>
             </div>
 
             <div>
-                <button onclick="save()">Save</button>
-                <button onclick="load()">Load</button>
+                <button onclick="toggleDragMode()" id="dragModeEnabler">Pan</button>
             </div>
 
         </div>
@@ -30,12 +49,17 @@
                ctx = canvas.getContext('2d');
 
          let squareSize = 0,
-             nx = 0,
-             ny = 0,
+             rx = 0, // how many cells to render for x
+             ry = 0, // how many cells to render for y
+             nx = canvas.width/(+window.size.min),
+             ny = canvas.height/(+window.size.min),
              loopIsRunning = false,
              generationCount = 0,
              cells = [];
-         init();
+
+         let startX = 0, // for translating 
+             startY = 0;
+
          load();
 
          class Vec2 {
@@ -48,8 +72,24 @@
                  return new Vec2(this.x-o.x, this.y-o.y);
              }
 
+             add(o) {
+                 return new Vec2(this.x+o.x, this.y+o.y);
+             }
+
              hyp() {
                  return Math.sqrt(this.x*this.x + this.y*this.y);
+             }
+
+             divScalar(s) {
+                 return new Vec2(this.x/s, this.y/s);
+             }
+             
+             mulScalar(s) {
+                 return new Vec2(this.x*s, this.y*s);
+             }
+
+             minMax(s) {
+                 return new Vec2(Math.max(-s, Math.min(s, this.x)), Math.max(-s, Math.min(s, this.y)));
              }
          }
 
@@ -64,13 +104,13 @@
          function getClosestCell(v) {
              let closest = [0, 0],
                  closestDistance = Infinity;
-             
-             for (let i=0; i<nx; ++i) {
-                 for (let j=0; j<ny; ++j) {
-                     const pos = new Vec2((i*squareSize) + squareSize/2, (j*squareSize) + squareSize/2);
+             //             v = v.sub(startX*squareSize, startY*squareSize);
+             for (let i=0; i<rx; ++i) {
+                 for (let j=0; j<ry; ++j) {
+                     const pos = new Vec2(((i*squareSize) + squareSize/2), ((j*squareSize) + squareSize/2));
                      let d = distance(v, pos);
                      if (d < closestDistance) {
-                         closest = [i, j];
+                         closest = [i+startX, j+startY];
                          closestDistance = d;
                      }
                  }
@@ -93,11 +133,12 @@
 
          function render() {
              ctx.clearRect(0, 0, canvas.width, canvas.height);
-             for (let i=0; i<nx; ++i) {
-                 for (let j=0; j<ny; ++j) {
+             for (let i=startX; i<rx+startX; ++i) {
+                 for (let j=startY; j<ry+startY; ++j) {
                      ctx.beginPath();
-                     ctx.rect(i*squareSize, j*squareSize, squareSize, squareSize);
-                     if (cells[i][j]) {
+                     ctx.rect((i-startX)*squareSize, (j-startY)*squareSize, squareSize, squareSize);
+                     if (i >= cells.length || j >= cells[0].length || i < 0 || j < 0) {
+                     } else if (cells[i][j]) {
                          ctx.fill();
                      } else {
                          ctx.stroke();
@@ -160,6 +201,11 @@
              localStorage.setItem('cells', JSON.stringify(cells));
          }
 
+         function clearCells() {
+             cells = createCells();
+             init();
+         }
+
          function printSave() {
              console.log(localStorage.getItem('cells'));
          }
@@ -167,19 +213,86 @@
          function load() {
              const item = localStorage.getItem('cells');
              if (item) {
-                 cells = JSON.parse(item);
+                 cells = resize(JSON.parse(item), nx, ny);
              } else {
                  cells = createCells();
              }
              init();
          }
 
-         canvas.onclick = function (e) {
+         function handleClick(e, toggle) {
              const pos = getRelativePosition(e);
              const [i, j] = getClosestCell(pos);
-             cells[i][j] = cells[i][j] === 0 ? 1 : 0;
+             if (i >= cells.length || j >= cells[0].length) {
+                 
+             } else {
+                 if (toggle) {
+                     cells[i][j] = cells[i][j] === 0 ? 1 : 0;
+                 } else {
+                     cells[i][j] = 1;
+                 }
+             }
              setGenerationCount(0);
              render();
+         }
+         
+         let mouseDown = false,
+             mouseDownPos = null,
+             dragged = false;
+         
+         canvas.onmousedown = function (e) {
+             mouseDown = true;
+             mouseDownPos = getRelativePosition(e);
+         }
+
+         canvas.onmouseup = function (e) {
+             if (!dragMode && !dragged) {
+                 handleClick(e, true);
+             }
+
+             mouseDown = false;
+             dragged = false;
+             mouseDownPos = null;
+             dMousePos = new Vec2(0, 0);
+         }
+
+         window.onwheel = function (e) {
+             let v = new Vec2(-e.deltaX, -e.deltaY);
+             v = v.divScalar(10);
+             const size = +window.size.value;
+             window.size.value = size + v.y;
+             window.size.onchange();
+         }
+
+         let mousePos = new Vec2(0, 0),
+             dMousePos = new Vec2(0, 0),
+             dragMode = false;
+         
+         canvas.onmousemove = function (e) {
+             const currentMousePos = getRelativePosition(e);
+             const _dMousePos = (currentMousePos.sub(mousePos).mulScalar(-1).minMax(15)).add(dMousePos);
+             mousePos = currentMousePos;
+             if (mouseDown) {
+                 if (dragMode) {
+                     dMousePos = _dMousePos;
+                     if (Math.abs(dMousePos.x) >= squareSize) {
+                         const diffX = Math.floor(dMousePos.x/squareSize);
+                         startX = diffX + startX;
+                         dMousePos.x = 0;
+                     }
+                     if (Math.abs(dMousePos.y) >= squareSize) {
+                         const diffY = Math.floor(dMousePos.y/squareSize);
+                         startY = diffY + startY;
+                         dMousePos.y = 0;
+                     }
+                     render();
+                 } else {
+                     if (mouseDownPos.sub(mousePos).hyp() > 5) {
+                         dragged = true;
+                         handleClick(e, false);
+                     }
+                 }
+             }
          }
 
          function getRelativePosition(e) {
@@ -187,6 +300,8 @@
              return new Vec2(event.clientX - rect.left, event.clientY - rect.top);
          }
 
+         // only resize if we are getting larger,
+         // if getting smaller, keep large array
          function resize(mat, x, y) {
              const resized = [];
              for (let i=0; i<x; ++i) {
@@ -207,23 +322,88 @@
              loopIsRunning = !loopIsRunning;
              if (loopIsRunning) {
                  loop();
-                 window.loopStarter.innerText = 'End Loop';
+                 window.loopStarter.innerText = 'Stop Loop';
              } else {
                  window.loopStarter.innerText = 'Start Loop';
              }
          }
 
+         function loadPrefab() {
+             cells = resize(prefabs[window.prefabSelector.value], nx, ny);
+             init();
+         }
+
+         function changeSize() {
+             //             const px = mousePos.x/canvas.width,
+             //                   py = mousePos.y/canvas.height;
+             //             startX = Math.round(rx*px);
+             //             startY = Math.round(ry*py);
+             //             console.log(startX, startY);
+             const oldRx = rx,
+                   oldRy = ry;
+             init();
+             const dx = Math.round(rx - oldRx);
+             const dy = Math.round(ry - oldRy);
+             init();
+         }
+
          function init() {
+             setGenerationCount(0);
              squareSize = +window.size.value;
-             nx = canvas.width/squareSize;
-             ny = canvas.height/squareSize;
-             cells = resize(cells, nx, ny);
+             rx = canvas.width/squareSize;
+             ry = canvas.height/squareSize;
+             //             cells = resize(cells, rx, ry);
              render();
          }
 
          function setGenerationCount(gc) {
              generationCount = gc;
              window.generationCounter.innerText = generationCount;
+         }
+
+         function toggleDragMode(force=null) {
+             if (force === null) {
+                 dragMode = !dragMode;
+             } else {
+                 dragMode = force;
+             }
+             
+             if (dragMode) {
+                 window.dragModeEnabler.innerText = 'Draw';
+                 canvas.style.cursor = 'grab';
+             } else {
+                 window.dragModeEnabler.innerText = 'Pan';
+                 canvas.style.cursor = null;
+             }
+         }
+
+         window.onkeypress = function (e) {
+             switch (e.key) {
+                 case 'd':
+                     toggleDragMode(false);
+                     break;
+                 case 'p':
+                     toggleDragMode(true);
+                     break;
+                 case 's':
+                     save();
+                     break;
+                 case 'l':
+                     load();
+                     break;
+                 case 'f':
+                     loadPrefab();
+                     break;
+                 case 'c':
+                     clearCells();
+                     break;
+                 case 'n':
+                     runGeneration();
+                     break;
+                 case 'r':
+                     toggleLoop();
+                     break;
+             }
          }
          
          function loop() {
