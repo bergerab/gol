@@ -1,4 +1,7 @@
-# Game of Life
+<div align="center">
+    <img src="img/main.png" width="200px" alt="Example from the game">
+    <h1>Game of Life</h1>
+</div>
 
 Yet another Game of Life remake. This one is in Javascript and has a few more features than most, but definitely isn't as good as what you can find on http://www.conwaylife.com/
 
