@@ -1,3 +1,7 @@
+const l = require('l-html'),
+      Vec2 = require('./vec2'),
+      prefabs = require('./prefabs');
+
 function gol(parent, init={}) {
     const width = init.width || 800,
           height = init.height || 600,
@@ -440,3 +444,5 @@ function gol(parent, init={}) {
         }, html.delayInput.value);
     }
 }
+
+module.exports = gol;
