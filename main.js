@@ -3,20 +3,21 @@ function gol(parent, init={}) {
           height = init.height || 600,
           html = {
               canvas: l.canvas({ width: width, height: height }),
-              delayInput: l.input({ type: 'range', min: 3, max: 2000, value: 300 }),
+              delayInput: l.input({ type: 'range', min: 3, max: 2000, value: 200 }),
               sizeInput:  l.input({ type: 'range', min: 2, max: 100, value: 20, onchange: changeSize }),
               loopButton: l.button('Start Loop', { onclick: () => toggleLoop() }),
               nextGenButton: l.button('Next Generation', { onclick: runGeneration }),
               clearButton: l.button('Clear', { onclick: clearCells }),
               saveButton: l.button('Save', { onclick: save }),
-              loadButton: l.button('Load', { onclick: load}),
+              loadButton: l.button('Load', { onclick: () => load()}),
               prefabSelect: l.select(Object.keys(prefabs).map(key => l.option(key, { value: key }))),
               loadPrefabButton: l.button('Load Prefab', { onclick: loadPrefab }),
               generationCounter: l.label('0'),
               modeButton: l.button('Pan', { onclick: toggleDragMode }),
               toggleGridButton: l.button('Hide Grid', { onclick: () => toggleGrid() }),
-              xInput: l.input({ value: 100, onchange: setNX }),
-              yInput: l.input({ value: 100, onchange: setNY }),
+              eraserButton: l.button('Eraser', { onclick: () => toggleEraser() }),
+              xInput: l.input({ type: 'number', value: 100, onchange: setNX, max: 1000, min: 1 }),
+              yInput: l.input({ type: 'number', value: 100, onchange: setNY, max: 1000, min: 1 }),
           },
           ctx = html.canvas.getContext('2d');
 
@@ -28,13 +29,13 @@ function gol(parent, init={}) {
         loopIsRunning: false,
         generationCount: 0,
         cells: [],
-        startX: -10, // x translation
-        startY: -3 // y translation
+        startX: 0, // x translation
+        startY: 0 // y translation
     };
 
     l(parent, l.with(html, () => div(
         canvas,
-        div(
+        div({ class: 'gol-settings' },
             div(
                 nextGenButton,
                 loopButton,
@@ -46,6 +47,7 @@ function gol(parent, init={}) {
                 label('Near', { style: { paddingRight: '10px' }}),
                 modeButton,
                 toggleGridButton,
+                eraserButton,
             ),
             div(
                 label('Size (X):'),
@@ -66,7 +68,7 @@ function gol(parent, init={}) {
                 label('Generation #'),
                 generationCounter,
             ),
-        )
+           )
     )));
 
     load();
@@ -77,13 +79,14 @@ function gol(parent, init={}) {
     function getClosestCell(v) {
         let closest = [0, 0],
             closestDistance = Infinity;
-        //             v = v.sub(startX*squareSize, startY*squareSize);
         for (let i=0; i<settings.nx; ++i) {
             for (let j=0; j<settings.ny; ++j) {
-                const pos = new Vec2(((i*settings.squareSize) + settings.squareSize/2), ((j*settings.squareSize) + settings.squareSize/2));
+                const x = i - settings.startX;
+                const y = j - settings.startY;
+                const pos = new Vec2(((x*settings.squareSize) + settings.squareSize/2), ((y*settings.squareSize) + settings.squareSize/2));
                 let d = Vec2.distance(v, pos);
                 if (d < closestDistance) {
-                    closest = [i+settings.startX, j+settings.startY];
+                    closest = [i, j];
                     closestDistance = d;
                 }
             }
@@ -106,12 +109,17 @@ function gol(parent, init={}) {
 
     function render() {
         ctx.clearRect(0, 0, html.canvas.width, html.canvas.height);
-        for (let i=settings.startX; i<settings.nx+settings.startX; ++i) {
-            for (let j=settings.startY; j<settings.ny+settings.startY; ++j) {
+        const width = html.canvas.width/settings.squareSize,
+              height = html.canvas.height/settings.squareSize;
+        
+        for (let i=0; i<width; ++i) {
+            for (let j=0; j<height; ++j) {
                 ctx.beginPath();
-                ctx.rect((i-settings.startX)*settings.squareSize, (j-settings.startY)*settings.squareSize, settings.squareSize, settings.squareSize);
-                if (i >= settings.cells.length || j >= settings.cells[0].length || i < 0 || j < 0) {
-                } else if (settings.cells[i][j]) {
+                ctx.rect(i*settings.squareSize, j*settings.squareSize, settings.squareSize, settings.squareSize);
+                const x = i + settings.startX;
+                const y = j + settings.startY;
+                if (x >= settings.cells.length || y >= settings.cells[0].length || x < 0 || y < 0) {
+                } else if (settings.cells[x][y]) {
                     ctx.fill();
                 } else {
                     if (settings.showGrid) {
@@ -178,6 +186,8 @@ function gol(parent, init={}) {
 
     function clearCells() {
         settings.cells = createCells();
+        setGenerationCount(0);
+        settings.loopIsRunning = false;
         render();
     }
 
@@ -194,15 +204,26 @@ function gol(parent, init={}) {
                 settings.cells = createCells();
             }
         } else {
-            settings = item;
+            settings = Object.assign({}, item);
         }
         
         html.xInput.value = settings.nx;
         html.yInput.value = settings.ny;
+        toggleLoop(settings.loopIsRunning);
         toggleGrid(settings.showGrid);
+        html.sizeInput.value = settings.squareSize;
+        setGenerationCount(settings.generationCount);
         
         render();
     }
+    
+    let mouseDown = false,
+        mouseDownPos = null,
+        dragged = false,
+        mousePos = new Vec2(0, 0),
+        dMousePos = new Vec2(0, 0),
+        dragMode = false,
+        eraserMode = false;
 
     function handleClick(e, toggle) {
         const pos = getRelativePosition(e);
@@ -213,19 +234,12 @@ function gol(parent, init={}) {
             if (toggle) {
                 settings.cells[i][j] = settings.cells[i][j] === 0 ? 1 : 0;
             } else {
-                settings.cells[i][j] = 1;
+                settings.cells[i][j] = eraserMode ? 0 : 1;
             }
         }
         setGenerationCount(0);
         render();
     }
-
-    let mouseDown = false,
-        mouseDownPos = null,
-        dragged = false,
-        mousePos = new Vec2(0, 0),
-        dMousePos = new Vec2(0, 0),
-        dragMode = false;
 
     html.canvas.addEventListener('mousedown', function (e) {
         mouseDown = true;
@@ -253,7 +267,7 @@ function gol(parent, init={}) {
 
     html.canvas.addEventListener('mousemove', function (e) {
         const currentMousePos = getRelativePosition(e);
-        const _dMousePos = (currentMousePos.sub(mousePos).mulScalar(-1).minMax(15)).add(dMousePos);
+        const _dMousePos = (currentMousePos.sub(mousePos).mulScalar(-1).minMax(20)).add(dMousePos);
         mousePos = currentMousePos;
         if (mouseDown) {
             if (dragMode) {
@@ -283,8 +297,6 @@ function gol(parent, init={}) {
         return new Vec2(e.clientX - rect.left, e.clientY - rect.top);
     }
 
-    // only resize if we are getting larger,
-    // if getting smaller, keep large array
     function resize(mat, x, y) {
         const resized = [];
         for (let i=0; i<x; ++i) {
@@ -326,15 +338,11 @@ function gol(parent, init={}) {
     }
 
     function loadPrefab() {
+        setGenerationCount(0);
         load(prefabs[html.prefabSelect.value]);
     }
 
     function changeSize() {
-//        const oldRx = settings.rx,
-//              oldRy = settings.ry;
-//        render();
-//        const dx = Math.round(settings.rx - oldRx);
-        //        const dy = Math.round(settings.ry - oldRy);
         settings.squareSize = +html.sizeInput.value;
         render();
     }
@@ -345,15 +353,24 @@ function gol(parent, init={}) {
     }
 
     function setNX() {
-        settings.nx = +html.xInput.value;
+        settings.nx = Math.max(1, Math.min(1000, +html.xInput.value));
         settings.cells = resize(settings.cells, settings.nx, settings.ny);
         render();
     }
 
     function setNY() {
-        settings.ny = +html.yInput.value;
+        settings.ny = Math.max(1, Math.min(1000, +html.yInput.value));
         settings.cells = resize(settings.cells, settings.nx, settings.ny);
         render();
+    }
+
+    function toggleEraser(force=null) {
+        eraserMode = force === null ? !eraserMode : force;
+        if (eraserMode) {
+            html.eraserButton.innerText = 'Pen';
+        } else {
+            html.eraserButton.innerText = 'Eraser';
+        }
     }
 
     function toggleDragMode(e, force=null) {
@@ -375,9 +392,14 @@ function gol(parent, init={}) {
     window.addEventListener('keypress', function (e) {
         switch (e.key) {
         case 'd':
+            toggleEraser(false);
             toggleDragMode(e, false);
             break;
         case 'p':
+            toggleEraser(false);
+            toggleDragMode(e, false);
+            break;
+        case 'q':
             toggleDragMode(e, true);
             break;
         case 's':
@@ -401,14 +423,18 @@ function gol(parent, init={}) {
         case 'g':
             toggleGrid();
             break;
+        case 'e':
+            toggleEraser(true);
+            toggleDragMode(e, false);
+            break;
         }
     });
 
     function loop() {
         setTimeout(function () {
-            runGeneration();
-            render();
             if (settings.loopIsRunning) {
+                runGeneration();
+                render();
                 loop();
             }
         }, html.delayInput.value);
