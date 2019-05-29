@@ -1,12 +1,17 @@
 <div align="center">
-    <img src="img/main.png" width="200px" alt="Example from the game">
-    <h1>Game of Life</h1>
+<img src="img/main.png" width="200px" alt="Example from the game" style="padding-bottom: 10px;">
+<h1>
+Conway's Game of Life
+<div>
+<a href="https://travis-ci.org/adambertrandberger/gol"><img src="https://travis-ci.org/adambertrandberger/gol.svg?branch=master"></a>
+</div>
+</h1>
 </div>
 
-Yet another Game of Life remake. This one is in Javascript and has a few more features than most, but definitely isn't as good as what you can find on http://www.conwaylife.com/
+Yet another Game of Life remake. This one is in Javascript and has a few more features than most. Still not as featured as the standard program seen on http://www.conwaylife.com/, but has some uniqueness to it :)
 
 It isn't very efficient right now, so I wouldn't suggest using large cell counts. This implementation is better at editing than it is running large games. Another thing about this is that 
-it is a bounded implementation. Anything out of bounds of the grid counts as being an alive cell this has some interesting consequences.
+it is a bounded implementation. Anything out of bounds of the grid counts as being an alive cell. This has some interesting consequences, but cuts your dreams of watching gliders go infinitely short :(
 
 [Try it out online!](https://adambertrandberger.github.io/gol/play/index.html)
 
