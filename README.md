@@ -13,7 +13,7 @@ Yet another Game of Life remake. This one is in Javascript and has a few more fe
 It isn't very efficient right now, so I wouldn't suggest using large cell counts. This implementation is better at editing than it is running large games. Another thing about this is that 
 it is a bounded implementation. Anything out of bounds of the grid counts as being an alive cell. This has some interesting consequences, but cuts your dreams of watching gliders go infinitely short :(
 
-[Try it out online!](https://adambertrandberger.github.io/gol/play/index.html)
+[Try it out online!](https://bergerab.github.io/gol/play/index.html)
 
 ## Usage
 To use this on your own HTML pages you can import the script (found in the `dist` folder) using a `script` tag. Then call:
